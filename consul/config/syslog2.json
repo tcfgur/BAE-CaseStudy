@@ -1,0 +1,12 @@
+{
+  "services": [
+    {
+      "id": "syslog2",
+      "name": "syslog",
+      "tags": ["udp"],
+      "address": "syslog2",
+      "port": 514
+    }
+  ]
+}
+
