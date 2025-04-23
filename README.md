@@ -30,6 +30,7 @@ log-routing-project/
 ## Step-by-Step Setup Instructions
 
 ### 1. Create Project Directory Structure
+
 ```bash
 mkdir -p log-routing-project/consul/config
 mkdir -p log-routing-project/loadbalancer
@@ -39,6 +40,7 @@ cd log-routing-project
 ```
 
 ### 2. Add `docker-compose.yaml`
+
 ```yaml
 version: '3.8'
 services:
@@ -79,6 +81,7 @@ services:
 ```
 
 ### 3. Add `logger/logger.py`
+
 ```python
 import socket
 import time
@@ -96,6 +99,7 @@ while True:
 ```
 
 ### 4. Add `loadbalancer/udp_load_balancer.py`
+
 ```python
 import socket
 import json
@@ -133,6 +137,7 @@ while True:
 ```
 
 ### 5. Add Consul Service Definitions (`consul/config/syslog1.json` and `syslog2.json`)
+
 ```json
 {
   "Name": "syslog",
@@ -142,6 +147,7 @@ while True:
   "Address": "syslog1"
 }
 ```
+
 ```json
 {
   "Name": "syslog",
@@ -153,6 +159,7 @@ while True:
 ```
 
 ### 6. Add `syslog/syslog-ng.conf`
+
 ```conf
 @version: 3.38
 @include "scl.conf"
@@ -162,25 +169,21 @@ log { source(s_net); destination(d_file); };
 ```
 
 ### 7. Start Everything
+
 ```bash
 docker-compose up --build
 ```
 
-### 8. Register Services to Consul (from inside the consul container)
-```bash
-curl --request PUT --data @/consul/config/syslog1.json http://localhost:8500/v1/agent/service/register
-curl --request PUT --data @/consul/config/syslog2.json http://localhost:8500/v1/agent/service/register
-```
-
----
-
 ## ✅ Verifying Project Functionality
 
 ### ✅ 1. Are All Service Containers Running?
+
 ```bash
 docker ps
 ```
+
 Expected:
+
 - All containers `Up` and `healthy` if healthchecks are defined:
   - logger
   - loadbalancer
@@ -189,24 +192,31 @@ Expected:
   - consul
 
 ### ✅ 2. Are Syslog Servers Discovered in Consul?
+
 ```bash
 curl http://localhost:8500/v1/catalog/services
 ```
+
 Expected output:
+
 ```json
 {
   "consul": [],
   "syslog": []
 }
 ```
+
 Or use web interface:
-👉 http://localhost:8500/ui
+👉 [http://localhost:8500/ui](http://localhost:8500/ui)
 
 ### ✅ 3. Is the Load Balancer Forwarding Logs Correctly?
+
 ```bash
 docker logs log-routing-project_loadbalancer_1 -f
 ```
+
 Expected output:
+
 ```text
 Discovered servers: [('syslog1', 514), ('syslog2', 514)]
 Forwarding to ('syslog2', 514)
@@ -214,38 +224,58 @@ Forwarding to ('syslog1', 514)
 ```
 
 ### ✅ 4. Is the Logger Producing UDP Logs?
+
 ```bash
 docker logs log-routing-project_logger_1 -f
 ```
+
 Expected output:
+
 ```text
 Sending: <13>2025-04-23 19:00:00 Logger says hello!
 Sending: <13>2025-04-23 19:00:01 Logger says hello!
 ```
 
 ### ✅ 5. Are Logs Written to Syslog Files?
+
 ```bash
 docker exec -it log-routing-project_syslog1_1 cat /var/log/syslog-ng/messages.log
 docker exec -it log-routing-project_syslog2_1 cat /var/log/syslog-ng/messages.log
 ```
+
 Expected log samples:
+
 ```text
 Apr 23 19:00:01 logger Logger says hello!
 ```
 
-### ✅ 6. (Optional) Can You See Logs via Docker Logs?
-If `syslog-ng.conf` is configured with:
-```conf
-destination d_stdout { file("/dev/stdout"); };
-```
-Then:
-```bash
-docker logs log-routing-project_syslog1_1 -f
-```
-Will show logs in terminal ✅
 
----
+## ✅ Final Step: Run the Health Check Script
+
+To ensure everything is working end-to-end, run the `health_check.sh` script:
+
+```bash
+./health_check.sh
+```
+
+Expected output:
+
+```text
+🔍 Checking Docker containers...
+✅ logger is running
+✅ loadbalancer is running
+✅ syslog1 is running
+✅ syslog2 is running
+✅ consul is running
+🌐 Checking Consul service discovery...
+✅ Consul discovered syslog services
+📤 Sending test UDP log to load balancer...
+📥 Checking syslog servers for the test log...
+✅ Log found in syslog2
+🎉 Health check passed!
+```
 
 ## Summary
+
 This project enables UDP log messages to be distributed dynamically to registered syslog-ng servers using Consul for service discovery and a Python-based custom load balancer. It is designed to be modular and easily expandable.
 
